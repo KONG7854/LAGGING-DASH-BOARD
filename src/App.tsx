@@ -42,6 +42,8 @@ import {
   RotateCcw,
   Save,
   Check,
+  Plus,
+  PlusCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { format, addMonths, subMonths, parseISO, eachMonthOfInterval, differenceInMonths } from "date-fns";
@@ -72,8 +74,47 @@ export default function App() {
   const [trendViewMode, setTrendViewMode] = useState<"chart" | "table">("chart");
   const [trendSelectedProductId, setTrendSelectedProductId] = useState<string>("all");
   const [analysisTrendSelectedProductId, setAnalysisTrendSelectedProductId] = useState<string>("all");
+  const [metalChartMode, setMetalChartMode] = useState<"split" | "combined">("split");
 
   const [activeTab, setActiveTab] = useState<"analysis" | "reference" | "trend" | "config">("analysis");
+
+  // Auto-migrate flat/stale metal prices to fluctuating values on mount
+  useEffect(() => {
+    // If the user has manually pasted, edited, or uploaded custom prices, do NOT perform auto-migration/resets
+    const isCustomized = localStorage.getItem("metalPricesIsUserCustomized") === "true";
+    if (isCustomized) {
+      return;
+    }
+
+    const saved = localStorage.getItem("metalPrices");
+    const migratedV5 = localStorage.getItem("metal_prices_v5_migrated");
+    
+    if (!migratedV5 || migratedV5 !== "true") {
+      // Force refresh with the latest fluctuating INITIAL_METAL_PRICES to fix stale flat rates
+      setMetalPrices(INITIAL_METAL_PRICES);
+      localStorage.setItem("metalPrices", JSON.stringify(INITIAL_METAL_PRICES));
+      localStorage.setItem("metal_prices_v5_migrated", "true");
+      return;
+    }
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Additional fallback detection if values are still flat or missing Sept 2027
+          const hasFlat2027 = parsed.some(p => p.date === "2027-01" && (p.ni === "16.98667" || Number(p.ni) === 16.98667));
+          const isMissingSep2027 = !parsed.some(p => p.date === "2027-09");
+          if (hasFlat2027 || isMissingSep2027) {
+            setMetalPrices(INITIAL_METAL_PRICES);
+            localStorage.setItem("metalPrices", JSON.stringify(INITIAL_METAL_PRICES));
+            localStorage.setItem("metal_prices_v5_migrated", "true");
+          }
+        }
+      } catch (e) {
+        console.error("Auto-migration of metal prices failed:", e);
+      }
+    }
+  }, []);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{ show: boolean; message: string; type: 'alert' | 'confirm'; onConfirm?: () => void }>({
     show: false,
@@ -138,6 +179,7 @@ export default function App() {
   const resetToFactoryDefaults = () => {
     showConfirm("모든 데이터를 삭제하고 초기 원본 상태로 되돌리시겠습니까? 이 작업은 되돌릴 수 없습니다.", () => {
       localStorage.removeItem('metalPrices');
+      localStorage.removeItem('metalPricesIsUserCustomized');
       localStorage.removeItem('products');
       localStorage.removeItem('confidential_data');
       localStorage.removeItem('precursor_restore_point');
@@ -186,6 +228,7 @@ export default function App() {
             localStorage.setItem('metalPrices', JSON.stringify(data.metalPrices));
             localStorage.setItem('products', JSON.stringify(data.products));
             if (data.confidentialData) localStorage.setItem('confidential_data', JSON.stringify(data.confidentialData));
+            localStorage.setItem('metalPricesIsUserCustomized', 'true');
             
             showAlert('데이터 동기화가 완료되었습니다.');
             setTimeout(() => window.location.reload(), 1500);
@@ -224,8 +267,70 @@ export default function App() {
   const [showMetalSaveSuccess, setShowMetalSaveSuccess] = useState(false);
   const [showFinanceSaveSuccess, setShowFinanceSaveSuccess] = useState(false);
 
+  // States for adding a new product individually
+  const [newProdName, setNewProdName] = useState("");
+  const [newProdNi, setNewProdNi] = useState("");
+  const [newProdCo, setNewProdCo] = useState("");
+  const [newProdMn, setNewProdMn] = useState("");
+  const [newProdFee, setNewProdFee] = useState("");
+
+  const handleAddIndividualProduct = () => {
+    if (!newProdName.trim()) {
+      showAlert("품목명을 입력해주세요.");
+      return;
+    }
+    const ni = parseFloat(newProdNi);
+    const co = parseFloat(newProdCo);
+    const mn = parseFloat(newProdMn);
+    const fee = parseFloat(newProdFee);
+
+    if (isNaN(ni) || ni < 0 || ni > 100) {
+      showAlert("올바른 Ni 함량(0~100%)을 입력해주세요.");
+      return;
+    }
+    if (isNaN(co) || co < 0 || co > 100) {
+      showAlert("올바른 Co 함량(0~100%)을 입력해주세요.");
+      return;
+    }
+    if (isNaN(mn) || mn < 0 || mn > 100) {
+      showAlert("올바른 Mn 함량(0~100%)을 입력해주세요.");
+      return;
+    }
+    if (isNaN(fee) || fee < 0) {
+      showAlert("올바른 가공비를 입력해주세요.");
+      return;
+    }
+
+    const totalRatio = ni + co + mn;
+    if (totalRatio > 100) {
+      showAlert("Ni, Co, Mn 함량의 합이 100%를 초과할 수 없습니다.");
+      return;
+    }
+
+    const newProduct: PrecursorProduct = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: newProdName.trim(),
+      niRatio: ni / 100,
+      coRatio: co / 100,
+      mnRatio: mn / 100,
+      processingFee: fee
+    };
+
+    setProducts(prev => [...prev, newProduct]);
+    
+    // Clear inputs
+    setNewProdName("");
+    setNewProdNi("");
+    setNewProdCo("");
+    setNewProdMn("");
+    setNewProdFee("");
+
+    showAlert(`품목 "${newProduct.name}"이(가) 추가되었습니다. 변경사항을 반영하려면 "설정 저장" 버튼을 눌러주세요.`);
+  };
+
   const handleSaveMetalPrices = () => {
     localStorage.setItem("metalPrices", JSON.stringify(metalPrices));
+    localStorage.setItem("metalPricesIsUserCustomized", "true");
     setShowMetalSaveSuccess(true);
     setTimeout(() => setShowMetalSaveSuccess(false), 3000);
   };
@@ -288,6 +393,26 @@ export default function App() {
       materialCost,
       purchasePrice: materialCost + product.processingFee,
       avg: avgs
+    };
+  };
+
+  const calculateSpotPurchasePrice = (month: string, product: PrecursorProduct) => {
+    const priceData = metalPrices.find((p) => p.date === month);
+    if (!priceData) return null;
+
+    const ni = Number(priceData.ni) || 0;
+    const co = Number(priceData.co) || 0;
+    const mn = Number(priceData.mn) || 0;
+
+    const materialCost =
+      (ni * product.niRatio +
+      co * product.coRatio +
+      mn * product.mnRatio);
+
+    return {
+      materialCost,
+      purchasePrice: materialCost + product.processingFee,
+      avg: { ni, co, mn }
     };
   };
 
@@ -363,9 +488,12 @@ export default function App() {
   }, [currentPrice, nextPrice, effectiveCost]);
 
   const handlePriceChange = (date: string, metal: keyof Omit<MetalPrice, "date">, value: string) => {
-    setMetalPrices((prev) =>
-      prev.map((p) => (p.date === date ? { ...p, [metal]: value } : p))
-    );
+    setMetalPrices((prev) => {
+      const nextPrices = prev.map((p) => (p.date === date ? { ...p, [metal]: value } : p));
+      localStorage.setItem("metalPrices", JSON.stringify(nextPrices));
+      localStorage.setItem("metalPricesIsUserCustomized", "true");
+      return nextPrices;
+    });
   };
 
   const handleProductChange = (productId: string, field: keyof PrecursorProduct, value: string | number) => {
@@ -420,9 +548,12 @@ export default function App() {
               updated.push(newP);
             }
           });
-          return updated.sort((a, b) => a.date.localeCompare(b.date));
+          const sorted = updated.sort((a, b) => a.date.localeCompare(b.date));
+          localStorage.setItem("metalPrices", JSON.stringify(sorted));
+          localStorage.setItem("metalPricesIsUserCustomized", "true");
+          return sorted;
         });
-        showAlert(`${newPrices.length}개의 데이터가 반영되었습니다.`);
+        showAlert(`${newPrices.length}개의 데이터가 반영 및 저장되었습니다.`);
         setShowPasteModal(false);
         setPasteText("");
       } else {
@@ -484,6 +615,20 @@ export default function App() {
     return metalPrices.filter((p) => p.date >= startStr && p.date <= endStr);
   }, [metalPrices, currentMonth]);
 
+  const threeMonthAvg = useMemo(() => {
+    return get3MonthAvg(currentMonth);
+  }, [currentMonth, metalPrices]);
+
+  const getDomain = (key: "ni" | "co" | "mn") => {
+    const values = chartRangeData.map((d) => Number(d[key]));
+    if (values.length === 0) return ["auto", "auto"];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    const padding = range === 0 ? 1 : range * 0.15;
+    return [Math.max(0, Number((min - padding).toFixed(2))), Number((max + padding).toFixed(2))];
+  };
+
   const trendData = useMemo(() => {
     const baseDate = parseISO(currentMonth + "-01");
     if (isNaN(baseDate.getTime())) return [];
@@ -517,43 +662,74 @@ export default function App() {
 
   const simulationResult = useMemo(() => {
     const product = products.find(p => p.id === simProductId) || products[0];
-    const priceA = calculatePurchasePrice(simMonthA, product)?.purchasePrice || 0;
-    const priceB = calculatePurchasePrice(simMonthB, product)?.purchasePrice || 0;
+    
+    // Get 3-month average directly for Month A and Month B
+    const avgA = get3MonthAvg(simMonthA);
+    const avgB = get3MonthAvg(simMonthB);
+    
+    // Calculate raw material cost directly
+    const rawPriceA = avgA 
+      ? avgA.ni * product.niRatio + avgA.co * product.coRatio + avgA.mn * product.mnRatio
+      : 0;
+      
+    const rawPriceB = avgB 
+      ? avgB.ni * product.niRatio + avgB.co * product.coRatio + avgB.mn * product.mnRatio
+      : 0;
+      
+    const processingFee = product.processingFee;
+    const priceA = avgA ? Number((rawPriceA + processingFee).toFixed(2)) : 0;
+    const priceB = avgB ? Number((rawPriceB + processingFee).toFixed(2)) : 0;
+    
+    const displayRawPriceA = Number(rawPriceA.toFixed(2));
+    const displayRawPriceB = Number(rawPriceB.toFixed(2));
     
     const dateA = parseISO(simMonthA + "-01");
     const dateB = parseISO(simMonthB + "-01");
     const monthsDiff = Math.abs(differenceInMonths(dateB, dateA));
     
     const isAEarlier = dateA < dateB;
-    const earlyMonth = isAEarlier ? simMonthA : simMonthB;
-    const lateMonth = isAEarlier ? simMonthB : simMonthA;
-    const earlyPrice = isAEarlier ? priceA : priceB;
-    const latePrice = isAEarlier ? priceB : priceA;
+    const isBEarlier = dateB < dateA;
 
-    // Calculations (Price is $/kg, so * 1000 for $/ton)
-    const baseCostEarly = earlyPrice * simQuantity * 1000;
-    const baseCostLate = latePrice * simQuantity * 1000;
-    
-    const storageCost = simStorageFee * simQuantity * monthsDiff;
-    const financialCost = baseCostEarly * (simInterestRate / 100 / 12) * monthsDiff;
-    
-    const totalEarly = baseCostEarly + storageCost + financialCost;
-    const totalLate = baseCostLate;
-    
-    const savings = totalLate - totalEarly;
-    
+    const baseCostA = priceA * simQuantity * 1000;
+    const baseCostB = priceB * simQuantity * 1000;
+
+    let storageCostA = 0;
+    let financialCostA = 0;
+    let storageCostB = 0;
+    let financialCostB = 0;
+
+    if (isAEarlier) {
+      storageCostA = simStorageFee * simQuantity * monthsDiff;
+      financialCostA = baseCostA * (simInterestRate / 100 / 12) * monthsDiff;
+    } else if (isBEarlier) {
+      storageCostB = simStorageFee * simQuantity * monthsDiff;
+      financialCostB = baseCostB * (simInterestRate / 100 / 12) * monthsDiff;
+    }
+
+    const totalA = baseCostA + storageCostA + financialCostA;
+    const totalB = baseCostB + storageCostB + financialCostB;
+
+    const savings = Math.abs(totalA - totalB);
+    const isAProposed = totalA < totalB;
+
     return {
-      earlyMonth,
-      lateMonth,
-      earlyPrice,
-      latePrice,
-      baseCostEarly,
-      baseCostLate,
-      storageCost,
-      financialCost,
-      totalEarly,
-      totalLate,
+      simMonthA,
+      simMonthB,
+      priceA,
+      priceB,
+      rawPriceA: displayRawPriceA,
+      rawPriceB: displayRawPriceB,
+      processingFee,
+      baseCostA,
+      baseCostB,
+      storageCostA,
+      financialCostA,
+      storageCostB,
+      financialCostB,
+      totalA,
+      totalB,
       savings,
+      isAProposed,
       monthsDiff
     };
   }, [simProductId, simQuantity, simMonthA, simMonthB, simInterestRate, simStorageFee, products, metalPrices]);
@@ -785,62 +961,234 @@ export default function App() {
             {/* Right Column: Charts & Inputs */}
             <div className="lg:col-span-8 space-y-6">
               {/* Metal Price Trend Chart */}
-              <div className="bg-white p-8 border border-[#141414]/10 rounded-sm h-[400px]">
-                <div className="flex justify-between items-start mb-8">
+              <div className={cn(
+                "bg-white p-8 border border-[#141414]/10 rounded-sm transition-all duration-300",
+                metalChartMode === "split" ? "h-auto min-h-[460px]" : "h-[400px]"
+              )}>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                       <TrendingUp size={14} /> 메탈 시세 추이
                     </h3>
                     <p className="text-[10px] font-mono opacity-50 mt-1 italic">과거 및 예측 시장 데이터 (단위: USD/kg)</p>
                   </div>
+                  <div className="flex items-center bg-[#141414]/5 p-0.5 rounded-sm border border-[#141414]/10 text-[10px] font-bold tracking-widest uppercase">
+                    <button
+                      onClick={() => setMetalChartMode("split")}
+                      className={cn(
+                        "px-3 py-1.5 transition-all rounded-sm",
+                        metalChartMode === "split"
+                          ? "bg-[#141414] text-white shadow-sm"
+                          : "text-[#141414]/60 hover:text-[#141414]"
+                      )}
+                    >
+                      3분할 보기
+                    </button>
+                    <button
+                      onClick={() => setMetalChartMode("combined")}
+                      className={cn(
+                        "px-3 py-1.5 transition-all rounded-sm",
+                        metalChartMode === "combined"
+                          ? "bg-[#141414] text-white shadow-sm"
+                          : "text-[#141414]/60 hover:text-[#141414]"
+                      )}
+                    >
+                      통합 보기
+                    </button>
+                  </div>
                 </div>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartRangeData}>
-                    <defs>
-                      <linearGradient id="colorNi" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#141414" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#141414" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorCo" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#F27D26" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#F27D26" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorMn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8E9299" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#8E9299" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="#14141408" />
-                    <XAxis 
-                      dataKey="date" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
-                      width={40}
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#141414', border: 'none', color: '#E4E3E0', borderRadius: '0px', padding: '12px' }}
-                      itemStyle={{ fontSize: '11px', fontFamily: 'monospace', color: '#E4E3E0', padding: '2px 0' }}
-                      labelStyle={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px', opacity: 0.5 }}
-                    />
-                    <Legend 
-                      verticalAlign="top" 
-                      align="right"
-                      iconType="circle" 
-                      wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }} 
-                    />
-                    <ReferenceLine x={currentMonth} stroke="#141414" strokeWidth={1} label={{ position: 'top', value: '현재', fill: '#141414', fontSize: 10, fontWeight: 'bold' }} />
-                    <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#141414" strokeWidth={2} fillOpacity={1} fill="url(#colorNi)" dot={{ r: 3, fill: '#141414', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                    <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#F27D26" strokeWidth={2} fillOpacity={1} fill="url(#colorCo)" dot={{ r: 3, fill: '#F27D26', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                    <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#8E9299" strokeWidth={2} fillOpacity={1} fill="url(#colorMn)" dot={{ r: 3, fill: '#8E9299', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+
+                {metalChartMode === "split" ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
+                    {/* Nickel (Ni) */}
+                    <div className="border border-[#141414]/10 bg-[#141414]/[0.01] p-4 flex flex-col h-[280px]">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#141414] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#141414]" /> 니켈 (Ni)
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-[#141414]" title="분석대상월 직전 3개월 평균">
+                          직전 3M 평균: ${threeMonthAvg ? threeMonthAvg.ni.toFixed(2) : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartRangeData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="splitColorNi" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#141414" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#141414" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} stroke="#14141408" />
+                            <XAxis 
+                              dataKey="date" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                              dy={5}
+                            />
+                            <YAxis 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                              domain={getDomain('ni')}
+                              tickCount={5}
+                            />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#141414', border: 'none', color: '#E4E3E0', borderRadius: '0px', padding: '8px' }}
+                              itemStyle={{ fontSize: '10px', fontFamily: 'monospace', color: '#E4E3E0', padding: '0' }}
+                              labelStyle={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', opacity: 0.5 }}
+                            />
+                            <ReferenceLine x={currentMonth} stroke="#141414" strokeWidth={1} strokeDasharray="3 3" />
+                            <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#141414" strokeWidth={2} fillOpacity={1} fill="url(#splitColorNi)" dot={{ r: 2, fill: '#141414', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Cobalt (Co) */}
+                    <div className="border border-[#F27D26]/10 bg-[#F27D26]/[0.01] p-4 flex flex-col h-[280px]">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#F27D26] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#F27D26]" /> 코발트 (Co)
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-[#F27D26]" title="분석대상월 직전 3개월 평균">
+                          직전 3M 평균: ${threeMonthAvg ? threeMonthAvg.co.toFixed(2) : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartRangeData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="splitColorCo" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#F27D26" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#F27D26" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} stroke="#14141408" />
+                            <XAxis 
+                              dataKey="date" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                              dy={5}
+                            />
+                            <YAxis 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                              domain={getDomain('co')}
+                              tickCount={5}
+                            />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#141414', border: 'none', color: '#E4E3E0', borderRadius: '0px', padding: '8px' }}
+                              itemStyle={{ fontSize: '10px', fontFamily: 'monospace', color: '#E4E3E0', padding: '0' }}
+                              labelStyle={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', opacity: 0.5 }}
+                            />
+                            <ReferenceLine x={currentMonth} stroke="#F27D26" strokeWidth={1} strokeDasharray="3 3" />
+                            <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#F27D26" strokeWidth={2} fillOpacity={1} fill="url(#splitColorCo)" dot={{ r: 2, fill: '#F27D26', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* Manganese (Mn) */}
+                    <div className="border border-[#8E9299]/15 bg-[#8E9299]/[0.01] p-4 flex flex-col h-[280px]">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8E9299] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#8E9299]" /> 망간 (Mn)
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-[#8E9299]" title="분석대상월 직전 3개월 평균">
+                          직전 3M 평균: ${threeMonthAvg ? threeMonthAvg.mn.toFixed(2) : "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartRangeData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="splitColorMn" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#8E9299" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#8E9299" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} stroke="#14141408" />
+                            <XAxis 
+                              dataKey="date" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                              dy={5}
+                            />
+                            <YAxis 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                              domain={getDomain('mn')}
+                              tickCount={5}
+                            />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#141414', border: 'none', color: '#E4E3E0', borderRadius: '0px', padding: '8px' }}
+                              itemStyle={{ fontSize: '10px', fontFamily: 'monospace', color: '#E4E3E0', padding: '0' }}
+                              labelStyle={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', opacity: 0.5 }}
+                            />
+                            <ReferenceLine x={currentMonth} stroke="#8E9299" strokeWidth={1} strokeDasharray="3 3" />
+                            <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#8E9299" strokeWidth={2} fillOpacity={1} fill="url(#splitColorMn)" dot={{ r: 2, fill: '#8E9299', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartRangeData}>
+                        <defs>
+                          <linearGradient id="colorNi" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#141414" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#141414" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorCo" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#F27D26" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#F27D26" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorMn" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8E9299" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#8E9299" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid vertical={false} stroke="#14141408" />
+                        <XAxis 
+                          dataKey="date" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                          dy={10}
+                        />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#141414', opacity: 0.5 }}
+                          width={40}
+                        />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#141414', border: 'none', color: '#E4E3E0', borderRadius: '0px', padding: '12px' }}
+                          itemStyle={{ fontSize: '11px', fontFamily: 'monospace', color: '#E4E3E0', padding: '2px 0' }}
+                          labelStyle={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '8px', opacity: 0.5 }}
+                        />
+                        <Legend 
+                          verticalAlign="top" 
+                          align="right"
+                          iconType="circle" 
+                          wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }} 
+                        />
+                        <ReferenceLine x={currentMonth} stroke="#141414" strokeWidth={1} label={{ position: 'top', value: '현재', fill: '#141414', fontSize: 10, fontWeight: 'bold' }} />
+                        <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#141414" strokeWidth={2} fillOpacity={1} fill="url(#colorNi)" dot={{ r: 3, fill: '#141414', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                        <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#F27D26" strokeWidth={2} fillOpacity={1} fill="url(#colorCo)" dot={{ r: 3, fill: '#F27D26', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                        <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#8E9299" strokeWidth={2} fillOpacity={1} fill="url(#colorMn)" dot={{ r: 3, fill: '#8E9299', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
 
               {/* Product Material Cost Trend Chart */}
@@ -1149,51 +1497,79 @@ export default function App() {
                   <div className="md:col-span-2 space-y-6">
                     <div className="grid grid-cols-2 gap-6">
                       <div className="p-4 bg-[#141414]/5 border border-[#141414]/10 rounded-sm">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-[#141414] text-white">Scenario A (Early)</span>
-                          <span className="text-xs font-mono font-bold">{simulationResult.earlyMonth}</span>
+                        <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#141414]/10">
+                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 bg-[#141414] text-white">Scenario A</span>
+                          <span className="text-xs font-mono font-bold">{simulationResult.simMonthA}</span>
                         </div>
+                        
+                        <div className="mb-4 pb-3 border-b border-[#141414]/10">
+                          <div className="flex justify-between items-baseline mb-1">
+                            <span className="text-[10px] font-bold text-[#141414]/60 uppercase tracking-tighter">적용 매입단가</span>
+                            <span className="text-lg font-bold font-mono text-[#141414]">
+                              ${simulationResult.priceA.toFixed(2)} <span className="text-[10px] opacity-60 font-sans">/kg</span>
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] opacity-60 font-mono">
+                            <span>원자재(Lagging): ${simulationResult.rawPriceA.toFixed(2)}</span>
+                            <span>가공비: ${simulationResult.processingFee.toFixed(2)}</span>
+                          </div>
+                        </div>
+
                         <div className="space-y-2">
                           <div className="flex justify-between text-xs">
-                            <span className="opacity-50">매입가 (${simulationResult.earlyPrice.toFixed(2)}/kg)</span>
-                            <span className="font-mono">${simulationResult.baseCostEarly.toLocaleString()}</span>
+                            <span className="opacity-50">원자재 매입비</span>
+                            <span className="font-mono">${simulationResult.baseCostA.toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between text-xs text-red-500">
-                            <span className="opacity-70">금융비용 ({simulationResult.monthsDiff}개월)</span>
-                            <span className="font-mono">+${simulationResult.financialCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <span className="opacity-70 font-bold">금융비용 {simulationResult.financialCostA > 0 ? `(${simulationResult.monthsDiff}개월)` : ""}</span>
+                            <span className="font-mono">{simulationResult.financialCostA > 0 ? `+$${simulationResult.financialCostA.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "$0"}</span>
                           </div>
                           <div className="flex justify-between text-xs text-red-500">
-                            <span className="opacity-70">보관비용 ({simulationResult.monthsDiff}개월)</span>
-                            <span className="font-mono">+${simulationResult.storageCost.toLocaleString()}</span>
+                            <span className="opacity-70 font-bold">보관비용 {simulationResult.storageCostA > 0 ? `(${simulationResult.monthsDiff}개월)` : ""}</span>
+                            <span className="font-mono">{simulationResult.storageCostA > 0 ? `+$${simulationResult.storageCostA.toLocaleString()}` : "$0"}</span>
                           </div>
                           <div className="pt-2 border-t border-[#141414]/10 flex justify-between font-bold">
                             <span>Total</span>
-                            <span className="font-mono">${simulationResult.totalEarly.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <span className="font-mono">${simulationResult.totalA.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="p-4 bg-[#141414]/5 border border-[#141414]/10 rounded-sm">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border border-[#141414]">Scenario B (Late)</span>
-                          <span className="text-xs font-mono font-bold">{simulationResult.lateMonth}</span>
+                        <div className="flex justify-between items-center mb-3 pb-2 border-b border-[#141414]/10">
+                          <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border border-[#141414]">Scenario B</span>
+                          <span className="text-xs font-mono font-bold">{simulationResult.simMonthB}</span>
                         </div>
+
+                        <div className="mb-4 pb-3 border-b border-[#141414]/10">
+                          <div className="flex justify-between items-baseline mb-1">
+                            <span className="text-[10px] font-bold text-[#141414]/60 uppercase tracking-tighter">적용 매입단가</span>
+                            <span className="text-lg font-bold font-mono text-[#141414]">
+                              ${simulationResult.priceB.toFixed(2)} <span className="text-[10px] opacity-60 font-sans">/kg</span>
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] opacity-60 font-mono">
+                            <span>원자재(Lagging): ${simulationResult.rawPriceB.toFixed(2)}</span>
+                            <span>가공비: ${simulationResult.processingFee.toFixed(2)}</span>
+                          </div>
+                        </div>
+
                         <div className="space-y-2">
                           <div className="flex justify-between text-xs">
-                            <span className="opacity-50">매입가 (${simulationResult.latePrice.toFixed(2)}/kg)</span>
-                            <span className="font-mono">${simulationResult.baseCostLate.toLocaleString()}</span>
+                            <span className="opacity-50">원자재 매입비</span>
+                            <span className="font-mono">${simulationResult.baseCostB.toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between text-xs opacity-30">
-                            <span>금융비용</span>
-                            <span className="font-mono">$0</span>
+                          <div className="flex justify-between text-xs text-red-500">
+                            <span className="opacity-70 font-bold">금융비용 {simulationResult.financialCostB > 0 ? `(${simulationResult.monthsDiff}개월)` : ""}</span>
+                            <span className="font-mono">{simulationResult.financialCostB > 0 ? `+$${simulationResult.financialCostB.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "$0"}</span>
                           </div>
-                          <div className="flex justify-between text-xs opacity-30">
-                            <span>보관비용</span>
-                            <span className="font-mono">$0</span>
+                          <div className="flex justify-between text-xs text-red-500">
+                            <span className="opacity-70 font-bold">보관비용 {simulationResult.storageCostB > 0 ? `(${simulationResult.monthsDiff}개월)` : ""}</span>
+                            <span className="font-mono">{simulationResult.storageCostB > 0 ? `+$${simulationResult.storageCostB.toLocaleString()}` : "$0"}</span>
                           </div>
                           <div className="pt-2 border-t border-[#141414]/10 flex justify-between font-bold">
                             <span>Total</span>
-                            <span className="font-mono">${simulationResult.totalLate.toLocaleString()}</span>
+                            <span className="font-mono">${simulationResult.totalB.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                           </div>
                         </div>
                       </div>
@@ -1210,25 +1586,26 @@ export default function App() {
                         <tbody className="text-sm font-mono">
                           <tr className="border-b border-[#141414]/10">
                             <td className="py-3 px-4 font-bold bg-[#141414]/5 border-r border-[#141414]/10 w-1/3 text-[11px] uppercase">의사결정 권고</td>
-                            <td className={cn(
-                              "py-3 px-4 font-bold",
-                              simulationResult.savings > 0 ? "text-green-600" : "text-red-600"
-                            )}>
-                              {simulationResult.savings > 0 
-                                ? `${simulationResult.earlyMonth} 조기 매입 유리` 
-                                : `${simulationResult.lateMonth} 매입 유리`}
+                            <td className="py-3 px-4 font-bold text-green-600">
+                              {simulationResult.savings === 0 
+                                ? "동일함" 
+                                : simulationResult.isAProposed 
+                                  ? `시나리오 A (${simulationResult.simMonthA}) 매입 유리` 
+                                  : `시나리오 B (${simulationResult.simMonthB}) 매입 유리`}
                             </td>
                           </tr>
                           <tr className="border-b border-[#141414]/10">
                             <td className="py-3 px-4 font-bold bg-[#141414]/5 border-r border-[#141414]/10 text-[11px] uppercase">손익 유리 금액</td>
-                            <td className="py-3 px-4 font-bold">
-                              {simulationResult.savings > 0 ? "+" : ""}{simulationResult.savings.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                            <td className="py-3 px-4 font-bold text-green-600">
+                              {simulationResult.savings === 0 ? "" : "+"}{simulationResult.savings.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
                             </td>
                           </tr>
                           <tr>
                             <td className="py-3 px-4 font-bold bg-[#141414]/5 border-r border-[#141414]/10 text-[11px] uppercase">수익률 개선 (%)</td>
                             <td className="py-3 px-4 font-bold">
-                              {((simulationResult.savings / simulationResult.totalLate) * 100).toFixed(2)}%
+                              {simulationResult.savings === 0 ? "0.00%" : (
+                                `${((simulationResult.savings / Math.max(simulationResult.totalA, simulationResult.totalB)) * 100).toFixed(2)}%`
+                              )}
                             </td>
                           </tr>
                         </tbody>
@@ -1591,7 +1968,15 @@ export default function App() {
                   <tbody className="divide-y divide-[#141414]/10">
                     {products.map((product) => (
                       <tr key={product.id} className="hover:bg-[#141414]/5 transition-colors group">
-                        <td className="p-4 font-bold text-sm">{product.name}</td>
+                        <td className="p-4">
+                          <input
+                            type="text"
+                            value={product.name}
+                            onChange={(e) => handleProductChange(product.id, "name", e.target.value)}
+                            className="w-full bg-transparent border-b border-[#141414]/10 focus:border-[#141414] focus:ring-0 p-1 font-bold text-sm transition-all"
+                            placeholder="품목명"
+                          />
+                        </td>
                         <td className="p-4">
                           <div className="flex items-center gap-2">
                             <input
@@ -1650,6 +2035,82 @@ export default function App() {
                         </td>
                       </tr>
                     ))}
+
+                    {/* Inline Product Addition Row */}
+                    <tr className="bg-emerald-50/20 border-t-2 border-emerald-500/20">
+                      <td className="p-4">
+                        <input
+                          type="text"
+                          placeholder="새 품목명 입력 (예: NCM523)"
+                          value={newProdName}
+                          onChange={(e) => setNewProdName(e.target.value)}
+                          className="w-full bg-white border border-[#141414]/15 rounded-sm p-1.5 text-sm font-bold placeholder-[#141414]/30 focus:border-emerald-500 outline-none transition-all"
+                        />
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Ni"
+                            value={newProdNi}
+                            onChange={(e) => setNewProdNi(e.target.value)}
+                            className="w-24 bg-white border border-[#141414]/15 rounded-sm p-1.5 text-sm font-mono focus:border-emerald-500 outline-none transition-all"
+                          />
+                          <span className="text-[10px] opacity-50">%</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Co"
+                            value={newProdCo}
+                            onChange={(e) => setNewProdCo(e.target.value)}
+                            className="w-24 bg-white border border-[#141414]/15 rounded-sm p-1.5 text-sm font-mono focus:border-emerald-500 outline-none transition-all"
+                          />
+                          <span className="text-[10px] opacity-50">%</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Mn"
+                            value={newProdMn}
+                            onChange={(e) => setNewProdMn(e.target.value)}
+                            className="w-24 bg-white border border-[#141414]/15 rounded-sm p-1.5 text-sm font-mono focus:border-emerald-500 outline-none transition-all"
+                          />
+                          <span className="text-[10px] opacity-50">%</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] opacity-50">$</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            placeholder="가공비"
+                            value={newProdFee}
+                            onChange={(e) => setNewProdFee(e.target.value)}
+                            className="w-24 bg-white border border-[#141414]/15 rounded-sm p-1.5 text-sm font-mono focus:border-emerald-500 outline-none transition-all"
+                          />
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <button
+                          type="button"
+                          onClick={handleAddIndividualProduct}
+                          className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#141414] hover:bg-[#141414]/90 text-white text-[10px] uppercase font-bold tracking-wider rounded-sm transition-all"
+                          title="품목 개별 추가"
+                        >
+                          <Plus size={12} />
+                          <span>추가</span>
+                        </button>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>

@@ -1001,12 +1001,12 @@ export default function App() {
                 {metalChartMode === "split" ? (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
                     {/* Nickel (Ni) */}
-                    <div className="border border-[#141414]/10 bg-[#141414]/[0.01] p-4 flex flex-col h-[280px]">
+                    <div className="border border-[#2563EB]/10 bg-[#2563EB]/[0.01] p-4 flex flex-col h-[280px]">
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#141414] flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#141414]" /> 니켈 (Ni)
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" /> 니켈 (Ni)
                         </span>
-                        <span className="text-[11px] font-mono font-bold text-[#141414]" title="분석대상월 직전 3개월 평균">
+                        <span className="text-[11px] font-mono font-bold text-[#2563EB]" title="분석대상월 직전 3개월 평균">
                           직전 3M 평균: ${threeMonthAvg ? threeMonthAvg.ni.toFixed(2) : "N/A"}
                         </span>
                       </div>
@@ -1015,8 +1015,8 @@ export default function App() {
                           <AreaChart data={chartRangeData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                             <defs>
                               <linearGradient id="splitColorNi" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#141414" stopOpacity={0.15}/>
-                                <stop offset="95%" stopColor="#141414" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
                             <CartesianGrid vertical={false} stroke="#14141408" />
@@ -1039,20 +1039,20 @@ export default function App() {
                               itemStyle={{ fontSize: '10px', fontFamily: 'monospace', color: '#E4E3E0', padding: '0' }}
                               labelStyle={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', opacity: 0.5 }}
                             />
-                            <ReferenceLine x={currentMonth} stroke="#141414" strokeWidth={1} strokeDasharray="3 3" />
-                            <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#141414" strokeWidth={2} fillOpacity={1} fill="url(#splitColorNi)" dot={{ r: 2, fill: '#141414', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+                            <ReferenceLine x={currentMonth} stroke="#2563EB" strokeWidth={1} strokeDasharray="3 3" />
+                            <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#2563EB" strokeWidth={2} fillOpacity={1} fill="url(#splitColorNi)" dot={{ r: 2, fill: '#2563EB', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
                     {/* Cobalt (Co) */}
-                    <div className="border border-[#141414]/10 bg-[#141414]/[0.01] p-4 flex flex-col h-[280px]">
+                    <div className="border border-[#F97316]/10 bg-[#F97316]/[0.01] p-4 flex flex-col h-[280px]">
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#404040] flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#404040]" /> 코발트 (Co)
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97316] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#F97316]" /> 코발트 (Co)
                         </span>
-                        <span className="text-[11px] font-mono font-bold text-[#404040]" title="분석대상월 직전 3개월 평균">
+                        <span className="text-[11px] font-mono font-bold text-[#F97316]" title="분석대상월 직전 3개월 평균">
                           직전 3M 평균: ${threeMonthAvg ? threeMonthAvg.co.toFixed(2) : "N/A"}
                         </span>
                       </div>
@@ -1061,8 +1061,8 @@ export default function App() {
                           <AreaChart data={chartRangeData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                             <defs>
                               <linearGradient id="splitColorCo" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#404040" stopOpacity={0.15}/>
-                                <stop offset="95%" stopColor="#404040" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#F97316" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#F97316" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
                             <CartesianGrid vertical={false} stroke="#14141408" />
@@ -1085,20 +1085,20 @@ export default function App() {
                               itemStyle={{ fontSize: '10px', fontFamily: 'monospace', color: '#E4E3E0', padding: '0' }}
                               labelStyle={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', opacity: 0.5 }}
                             />
-                            <ReferenceLine x={currentMonth} stroke="#404040" strokeWidth={1} strokeDasharray="3 3" />
-                            <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#404040" strokeWidth={2} fillOpacity={1} fill="url(#splitColorCo)" dot={{ r: 2, fill: '#404040', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+                            <ReferenceLine x={currentMonth} stroke="#F97316" strokeWidth={1} strokeDasharray="3 3" />
+                            <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#F97316" strokeWidth={2} fillOpacity={1} fill="url(#splitColorCo)" dot={{ r: 2, fill: '#F97316', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
                     {/* Manganese (Mn) */}
-                    <div className="border border-[#141414]/10 bg-[#141414]/[0.01] p-4 flex flex-col h-[280px]">
+                    <div className="border border-[#16A34A]/10 bg-[#16A34A]/[0.01] p-4 flex flex-col h-[280px]">
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#737373] flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#737373]" /> 망간 (Mn)
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#16A34A] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" /> 망간 (Mn)
                         </span>
-                        <span className="text-[11px] font-mono font-bold text-[#737373]" title="분석대상월 직전 3개월 평균">
+                        <span className="text-[11px] font-mono font-bold text-[#16A34A]" title="분석대상월 직전 3개월 평균">
                           직전 3M 평균: ${threeMonthAvg ? threeMonthAvg.mn.toFixed(2) : "N/A"}
                         </span>
                       </div>
@@ -1107,8 +1107,8 @@ export default function App() {
                           <AreaChart data={chartRangeData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                             <defs>
                               <linearGradient id="splitColorMn" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#737373" stopOpacity={0.15}/>
-                                <stop offset="95%" stopColor="#737373" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#16A34A" stopOpacity={0.15}/>
+                                <stop offset="95%" stopColor="#16A34A" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
                             <CartesianGrid vertical={false} stroke="#14141408" />
@@ -1131,8 +1131,8 @@ export default function App() {
                               itemStyle={{ fontSize: '10px', fontFamily: 'monospace', color: '#E4E3E0', padding: '0' }}
                               labelStyle={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px', opacity: 0.5 }}
                             />
-                            <ReferenceLine x={currentMonth} stroke="#737373" strokeWidth={1} strokeDasharray="3 3" />
-                            <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#737373" strokeWidth={2} fillOpacity={1} fill="url(#splitColorMn)" dot={{ r: 2, fill: '#737373', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
+                            <ReferenceLine x={currentMonth} stroke="#16A34A" strokeWidth={1} strokeDasharray="3 3" />
+                            <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#16A34A" strokeWidth={2} fillOpacity={1} fill="url(#splitColorMn)" dot={{ r: 2, fill: '#16A34A', strokeWidth: 0 }} activeDot={{ r: 4, strokeWidth: 0 }} />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
@@ -1144,16 +1144,16 @@ export default function App() {
                       <AreaChart data={chartRangeData}>
                         <defs>
                           <linearGradient id="colorNi" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#141414" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#141414" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#2563EB" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#2563EB" stopOpacity={0}/>
                           </linearGradient>
                           <linearGradient id="colorCo" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#404040" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#404040" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#F97316" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#F97316" stopOpacity={0}/>
                           </linearGradient>
                           <linearGradient id="colorMn" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#737373" stopOpacity={0.1}/>
-                            <stop offset="95%" stopColor="#737373" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#16A34A" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#16A34A" stopOpacity={0}/>
                           </linearGradient>
                         </defs>
                         <CartesianGrid vertical={false} stroke="#14141408" />
@@ -1182,9 +1182,9 @@ export default function App() {
                           wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }} 
                         />
                         <ReferenceLine x={currentMonth} stroke="#141414" strokeWidth={1} label={{ position: 'top', value: '현재', fill: '#141414', fontSize: 10, fontWeight: 'bold' }} />
-                        <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#141414" strokeWidth={2} fillOpacity={1} fill="url(#colorNi)" dot={{ r: 3, fill: '#141414', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                        <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#404040" strokeWidth={2} fillOpacity={1} fill="url(#colorCo)" dot={{ r: 3, fill: '#404040', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                        <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#737373" strokeWidth={2} fillOpacity={1} fill="url(#colorMn)" dot={{ r: 3, fill: '#737373', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                        <Area type="monotone" dataKey={(d) => Number(d.ni)} name="니켈 (Ni)" stroke="#2563EB" strokeWidth={2} fillOpacity={1} fill="url(#colorNi)" dot={{ r: 3, fill: '#2563EB', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                        <Area type="monotone" dataKey={(d) => Number(d.co)} name="코발트 (Co)" stroke="#F97316" strokeWidth={2} fillOpacity={1} fill="url(#colorCo)" dot={{ r: 3, fill: '#F97316', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                        <Area type="monotone" dataKey={(d) => Number(d.mn)} name="망간 (Mn)" stroke="#16A34A" strokeWidth={2} fillOpacity={1} fill="url(#colorMn)" dot={{ r: 3, fill: '#16A34A', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
